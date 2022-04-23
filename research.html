@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.1/chart.min.js"
+        integrity="sha512-QSkVNOCYLtj73J4hbmVoOV6KVZuMluZlioC+trLpewV8qMjsWqlIQvkn1KGX2StWvPMdWGBqim1xlC8krl1EKQ=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <title>Research</title>
+</head>
+
+<body>
+    <form id="form">
+        <label for="stock-symbol">Stock Symbol:</label>
+        <input required type="text" list="stock-symbols" id="stock-symbol" name="symbol" placeholder="loading..."
+            disabled><br>
+        <datalist id="stock-symbols"></datalist>
+    </form>
+    <br>
+    <label for="symbol">Symbol:</label>
+    <span id="symbol"></span><br>
+    <label for="company">Company Name:</label>
+    <span id="company"></span><br>
+    <label for="ratio">PE Ratio:</label>
+    <span id="ratio"></span><br>
+    <label for="capitalization">Market Capitalization:</label>
+    <span id="capitalization"></span><br>
+    <label for="high">52 Week High:</label>
+    <span id="high"></span><br>
+    <label for="low">52 Week Low:</label>
+    <span id="low"></span><br>
+    <canvas id="myChart" width="300" height="100"></canvas>
+
+    <script>
+        const token = 'Tpk_f7d5583ef1eb48f5b3f16c1448c07e92'
+
+        const getSymbols = () => {
+            return fetch(`https://sandbox.iexapis.com/stable/ref-data/symbols?token=${token}`)
+                .then(function (response) {
+                    return response.json()
+                })
+                .catch(function (err) {
+                    console.log('error: ' + err);
+                });
+        }
+
+        const getStockData = (symbol) => {
+            return fetch(`https://sandbox.iexapis.com/stable/stock/${symbol}/stats?token=${token}`)
+                .then(function (response) {
+                    return response.json()
+                })
+                .catch(function (err) {
+                    console.log('error: ' + err);
+                });
+        }
+
+        const getChartData = (symbol) => {
+            return fetch(`https://sandbox.iexapis.com/stable/stock/${symbol}/chart/5y?chartCloseOnly=true&token=${token}`)
+                .then(function (response) {
+                    return response.json()
+                })
+                .catch(function (err) {
+                    console.log('error: ' + err);
+                });
+        }
+
+        const showChart = (name, labels, data) => {
+            const chartStatus = Chart.getChart("myChart");
+            if (chartStatus != undefined) {
+                chartStatus.destroy();
+            }
+
+            const ctx = document.getElementById('myChart').getContext('2d');
+
+            const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+            gradient.addColorStop(0, 'rgb(230, 57, 70, 1)');
+            gradient.addColorStop(1, 'rgb(230, 57, 70, 0)');
+
+            const myChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: `5 year period of ${name}`,
+                        data: data,
+                        borderColor: 'rgb(230, 57, 70)',
+                        borderWidth: 1,
+                        fill: true,
+                        backgroundColor: gradient,
+                        pointRadius: 0,
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        },
+                        x: {
+                            ticks: {
+                                autoSkip: true,
+                                maxTicksLimit: 20
+                            }
+                        }
+                    }
+                }
+            });
+            return myChart
+        }
+
+        const setup = async () => {
+            const symbols = await getSymbols()
+            const cs_symbols = []
+
+            const cs = symbols.filter((obj) => {
+                return obj.type === "cs"
+            })
+
+            const list = document.getElementById("stock-symbols");
+            cs.forEach(obj => {
+                const option = document.createElement("option");
+                option.value = obj.symbol
+                cs_symbols.push(obj.symbol)
+                list.appendChild(option)
+            });
+
+            document.getElementById("form").addEventListener("submit",
+                async (event) => {
+                    event.preventDefault();
+
+                    const symbol = document.getElementById("stock-symbol").value.toUpperCase();
+                    const index = cs_symbols.indexOf(symbol)
+                    if (index === -1) {
+                        alert('Symbol not in the list!')
+                    }
+                    else {
+                        const stockData = await getStockData(symbol)
+                        append(symbol,
+                            stockData.companyName,
+                            stockData.peRatio.toFixed(2),
+                            stockData.marketcap,
+                            stockData.week52high,
+                            stockData.week52low)
+
+                        const chartData = await getChartData(symbol)
+                        const years = chartData.map((data) => { return data.date.substring(0, 4) })
+                        const prices = chartData.map((data) => { return data.close })
+                        showChart(`${stockData.companyName} (${symbol})`, years, prices)
+                    }
+                },
+                false);
+
+            const symbol = document.getElementById("stock-symbol");
+            symbol.placeholder = ''
+            symbol.disabled = false
+        }
+
+        const append = (a, b, c, d, e, f) => {
+            document.getElementById("symbol").innerText = a;
+            document.getElementById("company").innerText = b;
+            document.getElementById("ratio").innerText = c;
+            document.getElementById("capitalization").innerText = d;
+            document.getElementById("high").innerText = e;
+            document.getElementById("low").innerText = f;
+        }
+
+        setup()
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portfolio</title>
+    <style>
+        table,
+        th,
+        td {
+            border: 1px solid black;
+            border-collapse: collapse;
+            padding: 0.5rem;
+        }
+    </style>
+</head>
+
+<body>
+    <table id="table">
+        <tr>
+            <th>Stock</th>
+            <th>Quantity</th>
+            <th>Price</th>
+            <th>Gain/Loss</th>
+        </tr>
+    </table>
+    <p id="loading">Loading...</p><br>
+    <form id="form" action="http://localhost:8080/" method="post">
+        <label for="symbol">Stock Symbol:</label>
+        <input required type="text" list="symbols" id="symbol" name="symbol" placeholder="loading..." disabled><br>
+        <datalist id="symbols"></datalist>
+        <label for="quantity">Quantity:</label>
+        <input required type="number" id="quantity" name="quantity" onchange="isNegative()"><br>
+        <label for="price">Price:</label>
+        <input required type="number" id="price" name="price"><br><br>
+        <input type="reset">
+        <input type="submit" value="Update">
+    </form>
+
+    <script>
+        const token = 'Tpk_f7d5583ef1eb48f5b3f16c1448c07e92'
+
+        const getSymbols = () => {
+            return fetch(`https://sandbox.iexapis.com/stable/ref-data/symbols?token=${token}`)
+                .then(function (response) {
+                    return response.json()
+                })
+                .catch(function (err) {
+                    console.log('error: ' + err);
+                });
+        }
+
+        const getLatestPrice = (symbol) => {
+            return fetch(`https://sandbox.iexapis.com/stable/stock/${symbol}/quote/latestPrice?token=${token}`)
+                .then(function (response) {
+                    return response.json()
+                })
+                .catch(function (err) {
+                    console.log('error: ' + err);
+                });
+        }
+
+        const getData = () => {
+            return fetch('portfolio.json')
+                .then(function (response) {
+                    return response.json();
+                })
+                .catch(function (err) {
+                    console.log('error: ' + err);
+                });
+        }
+
+        const setup = async () => {
+            const symbols = await getSymbols()
+            const cs_symbols = []
+
+            const cs = symbols.filter((obj) => {
+                return obj.type === "cs"
+            })
+
+            const list = document.getElementById("symbols");
+            cs.forEach(obj => {
+                const option = document.createElement("option");
+                option.value = obj.symbol
+                cs_symbols.push(obj.symbol)
+                list.appendChild(option)
+            });
+
+            document.getElementById("form").addEventListener("submit",
+                function (event) {
+                    const symbol = document.getElementById("symbol").value.toUpperCase();
+                    const index = cs_symbols.indexOf(symbol)
+                    if (index === -1) {
+                        event.preventDefault();
+                        alert('Symbol not in the list!')
+                    }
+                },
+                false);
+
+            const symbol = document.getElementById("symbol");
+            symbol.placeholder = ''
+            symbol.disabled = false
+        }
+
+        const append = async (data) => {
+            const table = document.getElementById("table");
+            data.stocks.forEach(async (stock) => {
+                const tr = document.createElement("tr");
+                const td1 = document.createElement("td");
+                const td2 = document.createElement("td");
+                const td3 = document.createElement("td");
+                const td4 = document.createElement("td");
+
+                const symbol = document.createTextNode(stock.symbol);
+                const quantity = document.createTextNode(stock.quantity);
+                const price = document.createTextNode(stock.price);
+
+                const latestPrice = await getLatestPrice(stock.symbol);
+                const percent = (latestPrice - stock.price) / stock.price * 100
+                const gainloss = document.createTextNode(`${percent.toFixed(2)}%`);
+
+                td1.appendChild(symbol);
+                td2.appendChild(quantity);
+                td3.appendChild(price);
+                td4.appendChild(gainloss)
+
+                tr.appendChild(td1);
+                tr.appendChild(td2);
+                tr.appendChild(td3);
+                tr.appendChild(td4);
+
+                table.appendChild(tr);
+            })
+            if (data.stocks.length === 0) document.getElementById("loading").textContent = 'Portfolio is empty.'
+            else document.getElementById("loading").remove();
+        }
+
+        const isNegative = () => {
+            const quantity = document.getElementById("quantity").value
+            const price = document.getElementById("price")
+            if (quantity <= 0) {
+                price.required = false
+            }
+            else price.required = true
+        }
+
+        //on load
+        getData().then(data => { setup(); append(data) })
+    </script>
+</body>
+
+</html>
